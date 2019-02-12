@@ -14,20 +14,22 @@ import (
 
 var HttpClientPool sync.Pool
 var ipChan chan string
+var wg sync.WaitGroup
+var Stop = false
 
 /**
-103.21.244.0/22
-103.22.200.0/22
-103.31.4.0/22
+- 103.21.244.0/22
+- 103.22.200.0/22
+- 103.31.4.0/22
 - 104.16.0.0/12
 - 108.162.192.0/18
 131.0.72.0/22
 - 141.101.64.0/18
 - 162.158.0.0/15
 - 172.64.0.0/13
-173.245.48.0/20
-188.114.96.0/20
-190.93.240.0/20
+- 173.245.48.0/20
+- 188.114.96.0/20
+- 190.93.240.0/20
 197.234.240.0/22
 - 198.41.128.0/17
  */
@@ -36,22 +38,34 @@ func main() {
 	ipChan = make(chan string, 32)
 	fmt.Println(ipToInt("192.168.1.1"))
 	fmt.Println(IntToIp(2147483648))
-	fmt.Println(ipWithMask("198.41.128.0/17"))
-	start, length := ipWithMask("198.41.128.0/17")
+	fmt.Println(ipWithMask("199.27.132.0/24"))
+	start, length := ipWithMask("199.27.132.0/24")
 	var i uint32
 	for j := 0; j < 32; j++ {
 		go routine1()
+		wg.Add(1)
 	}
-	for i = 0; i < length; i += 16 {
+	for i = 0; i < length; i += 4 {
 		ipChan <- IntToIp(start + i)
 	}
+	Stop = true
+	wg.Wait()
+	fmt.Println("All done.")
 }
 
 func routine1() {
 	for {
-		ipStr := <-ipChan
-		fmt.Println(ipStr, "	", getCdnTrace(ipStr))
+		select {
+		case ipStr := <-ipChan:
+			fmt.Println(ipStr, "	", getCdnTrace(ipStr))
+		default:
+			if Stop {
+				goto FlagEnd
+			}
+		}
 	}
+FlagEnd:
+	wg.Done()
 }
 
 func getCdnTrace(ipStr string) (colo string) {
@@ -67,8 +81,11 @@ func getCdnTrace(ipStr string) (colo string) {
 	}
 	bodyStr := string(b)
 	s := strings.Index(bodyStr, "colo=")
+	if s == -1 {
+		return
+	}
 	colo = bodyStr[s : s+8]
-	if colo != "colo=HKG" && colo != "colo=SEA" && colo != "colo=LAX" && colo != "colo=NRT" {
+	if colo != "colo=LAX" && colo != "colo=SJC" {
 		colo += "FIND IT!!!"
 	}
 	return
